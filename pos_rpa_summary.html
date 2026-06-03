@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>POS自動売上計上 RPA実行サマリ</title>
-<script src="https://cdn.sheetjs.com/xlsx-0.20.2/package/dist/xlsx.full.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 <style>
 * { box-sizing: border-box; margin: 0; padding: 0; }
 body { font-family: 'Meiryo', 'Yu Gothic', sans-serif; background: #f0f2f5; color: #333; font-size: 14px; }
@@ -264,6 +264,10 @@ function setupDropZone(dzId, fileInputId, wbKey, fileNameKey, badgeId) {
 }
 
 function loadFile(file, wbKey, fileNameKey, badgeId) {
+  if (typeof XLSX === 'undefined') {
+    alert('Excelライブラリの読み込みに失敗しました。\nインターネット接続を確認してページを再読み込みしてください。');
+    return;
+  }
   const reader = new FileReader();
   reader.onload = e => {
     try {
@@ -399,6 +403,10 @@ function parseEmail(text) {
 
 // ========== サマリ生成 ==========
 function generateSummary() {
+  if (typeof XLSX === 'undefined') {
+    alert('Excelライブラリの読み込みに失敗しました。\nインターネット接続を確認してページを再読み込みしてください。');
+    return;
+  }
   const emailText = document.getElementById('email-body').value;
   const parsed = parseEmail(emailText);
 
