@@ -140,6 +140,10 @@ tfoot td { font-weight: bold; background: #f0f2f5; }
 <div class="card" id="mapping-card" style="display:none;">
   <h2>STEP 3 ― 列マッピング設定</h2>
   <p class="hint" style="margin-bottom:12px;">Excelの列名が読み込まれました。各項目に対応する列を選択してください。</p>
+  <p class="hint" style="margin-bottom:12px;">
+    💡 <strong>伝票データ</strong>を使う場合 → 計上金額列は <code>取引金額合計</code>（1伝票＝1行）<br>
+    💡 <strong>伝票明細データ</strong>を使う場合 → 計上金額列は <code>取引金額</code>（明細ごとに集計）
+  </p>
   <div class="row">
     <div class="field">
       <label>使用するファイル</label>
@@ -295,9 +299,11 @@ function updateMappingUI() {
 
 function populateSourceOptions() {
   const src = document.getElementById('map-source');
+  const prev = src.value;
   src.innerHTML = '';
-  if (state.slipWb)   src.insertAdjacentHTML('beforeend', '<option value="slip">伝票データ</option>');
+  if (state.slipWb)   src.insertAdjacentHTML('beforeend', '<option value="slip">伝票データ（推奨）</option>');
   if (state.detailWb) src.insertAdjacentHTML('beforeend', '<option value="detail">伝票明細データ</option>');
+  if (prev && src.querySelector(`option[value="${prev}"]`)) src.value = prev;
   populateSheets();
 }
 
@@ -350,12 +356,24 @@ document.getElementById('col-status').addEventListener('change', () => {
 });
 
 function autoGuess(selId, headers) {
-  const patterns = {
-    'col-store':    [/店番/,/店舗番号/,/店コード/,/store/i,/shop/i],
-    'col-amount':   [/金額/,/計上金額/,/売上/,/amount/i,/price/i],
-    'col-status':   [/結果/,/ステータス/,/status/i,/result/i,/成否/],
-    'col-datetime': [/日時/,/実行日/,/datetime/i,/date/i,/time/i],
+  // 完全一致を優先してから部分一致にフォールバック
+  const exactFirst = {
+    'col-store':    ['店舗CD', 'g_店舗CD', '店番', '店舗番号'],
+    'col-amount':   ['取引金額合計', '取引金額', '計上金額', '商品金額合計'],
+    'col-status':   ['実行結果', '結果', 'ステータス', '成否'],
+    'col-datetime': ['計上日', '発生日', '実行日時', '作成日'],
   };
+  const patterns = {
+    'col-store':    [/店舗CD/,/店番/,/店舗番号/,/店コード/,/store/i,/shop/i],
+    'col-amount':   [/取引金額合計/,/取引金額/,/計上金額/,/売上/,/amount/i],
+    'col-status':   [/結果/,/ステータス/,/status/i,/result/i,/成否/],
+    'col-datetime': [/計上日/,/発生日/,/日時/,/実行日/,/datetime/i],
+  };
+  // 完全一致
+  for (const exact of (exactFirst[selId] || [])) {
+    if (headers.includes(exact)) { document.getElementById(selId).value = exact; return; }
+  }
+  // 部分一致
   const pats = patterns[selId] || [];
   for (const pat of pats) {
     const found = headers.find(h => pat.test(h));
@@ -408,6 +426,12 @@ function generateSummary() {
   const colDatetime = document.getElementById('col-datetime').value ? headers.indexOf(document.getElementById('col-datetime').value) : -1;
 
   if (colStore < 0 || colAmount < 0) { alert('店番または計上金額の列が選択されていません。'); return; }
+
+  // 伝票明細で取引金額合計を選んだ場合の警告（伝票単位で同値が繰り返されるため二重計上になる）
+  if (src === 'detail' && document.getElementById('col-amount').value === '取引金額合計') {
+    const ok = confirm('⚠️ 伝票明細データで「取引金額合計」を使うと、同じ伝票の明細行数分だけ金額が重複します。\n「取引金額」（行ごとの金額）を使うことを推奨します。\nこのまま続けますか？');
+    if (!ok) return;
+  }
 
   const okVals = document.getElementById('ok-values').value.split(',').map(s => s.trim().toLowerCase()).filter(Boolean);
   const ngVals = document.getElementById('ng-values').value.split(',').map(s => s.trim().toLowerCase()).filter(Boolean);
