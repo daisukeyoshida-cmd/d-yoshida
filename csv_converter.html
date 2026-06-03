@@ -1,0 +1,501 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>受注CSVコンバーター</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: 'Meiryo', 'Yu Gothic', sans-serif; background: #f0f2f5; color: #333; }
+  header { background: #2e4057; color: #fff; padding: 14px 24px; font-size: 18px; font-weight: bold; }
+  .tabs { display: flex; background: #3d5170; }
+  .tab { padding: 10px 22px; cursor: pointer; color: #ccc; font-size: 14px; border-bottom: 3px solid transparent; }
+  .tab.active { color: #fff; border-bottom-color: #5bc0eb; }
+  .panel { display: none; padding: 20px; max-width: 1100px; margin: 0 auto; }
+  .panel.active { display: block; }
+
+  .card { background: #fff; border-radius: 8px; box-shadow: 0 1px 4px rgba(0,0,0,0.1); padding: 20px; margin-bottom: 20px; }
+  .card h2 { font-size: 15px; color: #2e4057; margin-bottom: 14px; border-left: 4px solid #5bc0eb; padding-left: 8px; }
+
+  label { font-size: 13px; display: block; margin-bottom: 4px; color: #555; }
+  input[type=text], input[type=number], select {
+    border: 1px solid #ccc; border-radius: 4px; padding: 6px 10px; font-size: 14px; width: 100%;
+  }
+  input:focus, select:focus { outline: none; border-color: #5bc0eb; }
+
+  .row { display: flex; gap: 12px; margin-bottom: 12px; align-items: flex-end; }
+  .field { flex: 1; }
+  .field.sm { flex: 0 0 120px; }
+  .field.md { flex: 0 0 180px; }
+
+  table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  th { background: #2e4057; color: #fff; padding: 8px 10px; text-align: center; }
+  td { padding: 6px 8px; border-bottom: 1px solid #eee; }
+  tr:hover td { background: #f8f9fb; }
+  td input { border: none; background: transparent; width: 100%; font-size: 13px; padding: 2px 4px; }
+  td input:focus { background: #fff; border: 1px solid #5bc0eb; border-radius: 3px; outline: none; }
+
+  .btn { padding: 8px 18px; border: none; border-radius: 5px; cursor: pointer; font-size: 13px; font-weight: bold; }
+  .btn-primary { background: #2e4057; color: #fff; }
+  .btn-primary:hover { background: #3d5170; }
+  .btn-success { background: #27ae60; color: #fff; }
+  .btn-success:hover { background: #219a52; }
+  .btn-danger { background: #e74c3c; color: #fff; }
+  .btn-danger:hover { background: #c0392b; }
+  .btn-sm { padding: 4px 10px; font-size: 12px; }
+  .btn-outline { background: transparent; border: 1px solid #2e4057; color: #2e4057; }
+  .btn-outline:hover { background: #2e4057; color: #fff; }
+
+  .actions { display: flex; gap: 10px; margin-top: 16px; }
+
+  .info-box { background: #eaf4fb; border: 1px solid #5bc0eb; border-radius: 5px; padding: 10px 14px; font-size: 12px; color: #2e4057; margin-bottom: 14px; }
+
+  .preview-table-wrap { overflow-x: auto; }
+  .preview-table th { font-size: 12px; white-space: nowrap; }
+  .preview-table td { font-size: 12px; white-space: nowrap; }
+  .file-badge { display: inline-block; background: #5bc0eb; color: #fff; border-radius: 3px; padding: 1px 6px; font-size: 11px; }
+
+  .toast { position: fixed; bottom: 30px; right: 30px; background: #27ae60; color: #fff; padding: 12px 22px; border-radius: 6px; font-size: 14px; box-shadow: 0 4px 12px rgba(0,0,0,0.2); opacity: 0; transition: opacity .3s; z-index: 999; }
+  .toast.show { opacity: 1; }
+  .toast.error { background: #e74c3c; }
+
+  .stat-row { display: flex; gap: 16px; margin-bottom: 16px; }
+  .stat { background: #f8f9fb; border-radius: 6px; padding: 10px 16px; flex: 1; text-align: center; }
+  .stat .num { font-size: 22px; font-weight: bold; color: #2e4057; }
+  .stat .lbl { font-size: 11px; color: #888; margin-top: 2px; }
+</style>
+</head>
+<body>
+<header>受注CSVコンバーター</header>
+<div class="tabs">
+  <div class="tab active" onclick="switchTab('input')">データ入力</div>
+  <div class="tab" onclick="switchTab('master')">受注番号マスタ</div>
+  <div class="tab" onclick="switchTab('preview')">CSVプレビュー</div>
+</div>
+
+<!-- ===== データ入力タブ ===== -->
+<div id="tab-input" class="panel active">
+  <div class="card">
+    <h2>受注番号・決済方法</h2>
+    <div class="info-box">
+      受注番号を選択すると「受注番号マスタ」から決済方法が自動取得されます。
+    </div>
+    <div class="row">
+      <div class="field md">
+        <label>受注番号</label>
+        <select id="orderNoSelect" onchange="onOrderChange()">
+          <option value="">-- 選択または入力 --</option>
+        </select>
+      </div>
+      <div class="field md">
+        <label>または直接入力</label>
+        <input type="text" id="orderNoInput" placeholder="例: HAP" oninput="onOrderInput()">
+      </div>
+      <div class="field md">
+        <label>決済方法（自動取得）</label>
+        <input type="text" id="paymentDisplay" placeholder="マスタから自動取得" readonly style="background:#f5f5f5;">
+      </div>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>商品データ入力（税抜単価を入力してください）</h2>
+    <div class="info-box">
+      SKU・税抜単価・数量を入力 → 税込単価は自動計算（ROUNDDOWN(単価×1.1, 0)）
+    </div>
+    <table id="dataTable">
+      <thead>
+        <tr>
+          <th style="width:40px">No.</th>
+          <th>SKU（商品番号）</th>
+          <th style="width:130px">税抜単価</th>
+          <th style="width:100px">数量</th>
+          <th style="width:130px">税込単価（自動）</th>
+          <th style="width:140px">金額合計（自動）</th>
+          <th style="width:60px">削除</th>
+        </tr>
+      </thead>
+      <tbody id="dataBody"></tbody>
+    </table>
+    <div class="actions">
+      <button class="btn btn-outline btn-sm" onclick="addRow()">＋ 行を追加</button>
+      <button class="btn btn-outline btn-sm" onclick="addRows(10)">＋ 10行追加</button>
+    </div>
+  </div>
+
+  <div class="actions">
+    <button class="btn btn-success" onclick="exportCSV()">📥 CSV出力</button>
+    <button class="btn btn-danger" onclick="clearData()">🗑 データクリア</button>
+  </div>
+</div>
+
+<!-- ===== マスタタブ ===== -->
+<div id="tab-master" class="panel">
+  <div class="card">
+    <h2>受注番号マスタ（受注番号 → 決済方法）</h2>
+    <div class="info-box">受注番号ごとに決済方法を設定してください。CSV出力時に自動反映されます。</div>
+    <table id="masterTable">
+      <thead>
+        <tr>
+          <th>受注番号</th>
+          <th>決済方法</th>
+          <th>備考</th>
+          <th style="width:60px">削除</th>
+        </tr>
+      </thead>
+      <tbody id="masterBody"></tbody>
+    </table>
+    <div class="actions">
+      <button class="btn btn-outline btn-sm" onclick="addMasterRow()">＋ 行を追加</button>
+      <button class="btn btn-primary btn-sm" onclick="saveMaster()">💾 保存</button>
+    </div>
+  </div>
+</div>
+
+<!-- ===== プレビュータブ ===== -->
+<div id="tab-preview" class="panel">
+  <div class="card">
+    <h2>CSVプレビュー（最後にCSV出力した内容）</h2>
+    <div id="previewStats" class="stat-row" style="display:none"></div>
+    <div class="preview-table-wrap">
+      <table class="preview-table" id="previewTable">
+        <thead>
+          <tr>
+            <th>ファイル#</th>
+            <th>受注番号</th>
+            <th>商品番号</th>
+            <th>新中区分</th>
+            <th>中古フラグ</th>
+            <th>商品名</th>
+            <th>単価</th>
+            <th>個数</th>
+            <th>金額合計</th>
+            <th>決済方法</th>
+            <th>注文日時</th>
+            <th>合計金額</th>
+            <th>ポイント利用額</th>
+            <th>クレジットカード種類</th>
+          </tr>
+        </thead>
+        <tbody id="previewBody">
+          <tr><td colspan="14" style="text-align:center;color:#aaa;padding:20px">CSV出力を実行するとプレビューが表示されます</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="actions" id="downloadLinks"></div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+// ===== 定数 =====
+const SPLIT_SIZE = 99;
+const CSV_HEADER = ['受注番号','商品番号','新中区分','中古フラグ','商品名','単価','個数','金額合計','決済方法','注文日時','合計金額','ポイント利用額','クレジットカード種類'];
+
+// ===== 状態 =====
+let masterData = [
+  { orderNo: 'HAP', payment: 'その他卸売り', note: '' },
+  { orderNo: '3095', payment: 'ポイント利用額', note: '（株）マークス' }
+];
+let lastCsvFiles = [];
+
+// ===== 初期化 =====
+window.onload = () => {
+  loadMaster();
+  renderMasterTable();
+  renderDataTable();
+  addRows(5);
+  refreshOrderSelect();
+};
+
+// ===== タブ切替 =====
+function switchTab(name) {
+  document.querySelectorAll('.tab').forEach((t, i) => {
+    const names = ['input','master','preview'];
+    t.classList.toggle('active', names[i] === name);
+  });
+  document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
+  document.getElementById('tab-' + name).classList.add('active');
+}
+
+// ===== マスタ管理 =====
+function loadMaster() {
+  try {
+    const saved = localStorage.getItem('csvMaster');
+    if (saved) masterData = JSON.parse(saved);
+  } catch(e) {}
+}
+
+function saveMaster() {
+  // テーブルからデータ収集
+  const rows = document.querySelectorAll('#masterBody tr');
+  masterData = [];
+  rows.forEach(r => {
+    const cells = r.querySelectorAll('input');
+    const orderNo = cells[0]?.value.trim();
+    const payment = cells[1]?.value.trim();
+    const note = cells[2]?.value.trim() || '';
+    if (orderNo) masterData.push({ orderNo, payment, note });
+  });
+  localStorage.setItem('csvMaster', JSON.stringify(masterData));
+  refreshOrderSelect();
+  toast('マスタを保存しました');
+}
+
+function renderMasterTable() {
+  const tbody = document.getElementById('masterBody');
+  tbody.innerHTML = '';
+  masterData.forEach((row, i) => {
+    tbody.insertAdjacentHTML('beforeend', masterRowHtml(row, i));
+  });
+}
+
+function masterRowHtml(row, i) {
+  return `<tr>
+    <td><input type="text" value="${esc(row.orderNo)}" placeholder="受注番号"></td>
+    <td><input type="text" value="${esc(row.payment)}" placeholder="決済方法"></td>
+    <td><input type="text" value="${esc(row.note)}" placeholder="備考"></td>
+    <td><button class="btn btn-danger btn-sm" onclick="delMasterRow(this)">削除</button></td>
+  </tr>`;
+}
+
+function addMasterRow() {
+  document.getElementById('masterBody').insertAdjacentHTML('beforeend',
+    masterRowHtml({ orderNo: '', payment: '', note: '' }, -1));
+}
+
+function delMasterRow(btn) {
+  btn.closest('tr').remove();
+}
+
+function refreshOrderSelect() {
+  const sel = document.getElementById('orderNoSelect');
+  const cur = sel.value;
+  sel.innerHTML = '<option value="">-- 選択または入力 --</option>';
+  masterData.forEach(m => {
+    sel.insertAdjacentHTML('beforeend',
+      `<option value="${esc(m.orderNo)}">${esc(m.orderNo)}（${esc(m.payment)}）</option>`);
+  });
+  sel.value = cur;
+}
+
+function getPayment(orderNo) {
+  const m = masterData.find(r => r.orderNo === orderNo);
+  return m ? m.payment : '';
+}
+
+function onOrderChange() {
+  const v = document.getElementById('orderNoSelect').value;
+  document.getElementById('orderNoInput').value = v;
+  document.getElementById('paymentDisplay').value = getPayment(v);
+}
+
+function onOrderInput() {
+  const v = document.getElementById('orderNoInput').value.trim();
+  document.getElementById('orderNoSelect').value = v;
+  document.getElementById('paymentDisplay').value = getPayment(v);
+}
+
+function getOrderNo() {
+  return (document.getElementById('orderNoInput').value || document.getElementById('orderNoSelect').value || '').trim();
+}
+
+// ===== データテーブル =====
+function renderDataTable() {
+  document.getElementById('dataBody').innerHTML = '';
+}
+
+function addRow() {
+  const tbody = document.getElementById('dataBody');
+  const no = tbody.rows.length + 1;
+  const tr = document.createElement('tr');
+  tr.innerHTML = `
+    <td style="text-align:center;color:#aaa">${no}</td>
+    <td><input type="text" placeholder="例: ABC-001" oninput="calcRow(this)"></td>
+    <td><input type="number" min="0" placeholder="0" oninput="calcRow(this)"></td>
+    <td><input type="number" min="0" placeholder="0" oninput="calcRow(this)"></td>
+    <td><input type="number" readonly style="background:#f5f5f5"></td>
+    <td><input type="number" readonly style="background:#f5f5f5"></td>
+    <td><button class="btn btn-danger btn-sm" onclick="delRow(this)">削除</button></td>`;
+  tbody.appendChild(tr);
+}
+
+function addRows(n) { for (let i = 0; i < n; i++) addRow(); }
+
+function delRow(btn) { btn.closest('tr').remove(); renumberRows(); }
+
+function renumberRows() {
+  document.querySelectorAll('#dataBody tr').forEach((tr, i) => {
+    tr.cells[0].textContent = i + 1;
+  });
+}
+
+function calcRow(input) {
+  const tr = input.closest('tr');
+  const cells = tr.querySelectorAll('input');
+  const unitPrice = parseFloat(cells[1].value) || 0;
+  const qty = parseInt(cells[2].value) || 0;
+  const taxPrice = Math.floor(unitPrice * 1.1);
+  const total = taxPrice * qty;
+  cells[3].value = unitPrice > 0 ? taxPrice : '';
+  cells[4].value = (unitPrice > 0 && qty > 0) ? total : '';
+}
+
+function getDataRows() {
+  const rows = [];
+  document.querySelectorAll('#dataBody tr').forEach(tr => {
+    const cells = tr.querySelectorAll('input');
+    const sku = cells[0].value.trim();
+    if (!sku) return;
+    const unitPrice = parseFloat(cells[1].value);
+    const qty = parseInt(cells[2].value);
+    if (isNaN(unitPrice) || isNaN(qty)) return;
+    const taxPrice = Math.floor(unitPrice * 1.1);
+    rows.push({ sku, unitPrice, qty, taxPrice, total: taxPrice * qty });
+  });
+  return rows;
+}
+
+// ===== CSV出力 =====
+function exportCSV() {
+  const orderNo = getOrderNo();
+  if (!orderNo) { toast('受注番号を選択または入力してください', true); return; }
+
+  const payment = getPayment(orderNo);
+  if (!payment) { toast('指定された受注番号の決済方法が見つかりません: ' + orderNo, true); return; }
+
+  const dataRows = getDataRows();
+  if (dataRows.length === 0) { toast('有効なデータがありません', true); return; }
+
+  const nowStr = formatDateTime(new Date());
+  const headerLine = CSV_HEADER.map(q).join(',');
+  const allLines = [];
+  const previewRows = [];
+
+  dataRows.forEach(row => {
+    const line = [
+      q(orderNo), q(row.sku), q('新品'), q('0'), q(''),
+      q(String(row.taxPrice)), q(String(row.qty)), q(String(row.total)),
+      q(payment), q(nowStr), q(''), q('0'), q('')
+    ].join(',');
+    allLines.push(line);
+    previewRows.push({ ...row, orderNo, payment, nowStr });
+  });
+
+  // ファイル分割
+  const files = [];
+  for (let i = 0; i < allLines.length; i += SPLIT_SIZE) {
+    const chunk = allLines.slice(i, i + SPLIT_SIZE);
+    const fileNo = Math.floor(i / SPLIT_SIZE) + 1;
+    const content = headerLine + '\r\n' + chunk.join('\r\n') + '\r\n';
+    const date = formatDate(new Date());
+    const fileName = `${payment}_${date}__${fileNo}.csv`;
+    files.push({ fileName, content, fileNo, count: chunk.length });
+  }
+
+  // ダウンロード（Shift-JIS BOM付きUTF-8 → Excelで開ける）
+  lastCsvFiles = files;
+  files.forEach(f => downloadCsv(f.fileName, f.content));
+
+  // プレビュー更新
+  updatePreview(previewRows, files);
+
+  const msg = files.length === 1
+    ? `CSV出力完了！\n出力ファイル数: 1個\n総レコード数: ${dataRows.length}件\n決済方法: ${payment}`
+    : `CSV分割出力完了！\n出力ファイル数: ${files.length}個\n総レコード数: ${dataRows.length}件\n決済方法: ${payment}`;
+  toast(msg.replace(/\n/g, ' ／ '));
+
+  switchTab('preview');
+}
+
+function downloadCsv(fileName, content) {
+  // UTF-8 BOM付きで出力（Excelで文字化けしない）
+  const bom = '﻿';
+  const blob = new Blob([bom + content], { type: 'text/csv;charset=utf-8' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = fileName;
+  a.click();
+  setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+}
+
+// ===== プレビュー =====
+function updatePreview(rows, files) {
+  const tbody = document.getElementById('previewBody');
+  tbody.innerHTML = '';
+  rows.forEach((row, i) => {
+    const fileNo = Math.floor(i / SPLIT_SIZE) + 1;
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td><span class="file-badge">${fileNo}</span></td>
+      <td>${esc(row.orderNo)}</td>
+      <td>${esc(row.sku)}</td>
+      <td>新品</td>
+      <td>0</td>
+      <td></td>
+      <td>${row.taxPrice.toLocaleString()}</td>
+      <td>${row.qty.toLocaleString()}</td>
+      <td>${row.total.toLocaleString()}</td>
+      <td>${esc(row.payment)}</td>
+      <td>${esc(row.nowStr)}</td>
+      <td></td>
+      <td>0</td>
+      <td></td>`;
+    tbody.appendChild(tr);
+  });
+
+  // 統計
+  const statsEl = document.getElementById('previewStats');
+  statsEl.style.display = 'flex';
+  statsEl.innerHTML = `
+    <div class="stat"><div class="num">${files.length}</div><div class="lbl">出力ファイル数</div></div>
+    <div class="stat"><div class="num">${rows.length}</div><div class="lbl">総レコード数</div></div>
+    <div class="stat"><div class="num">${rows.reduce((s, r) => s + r.total, 0).toLocaleString()}</div><div class="lbl">合計金額（税込）</div></div>`;
+
+  // 再ダウンロードリンク
+  const dlEl = document.getElementById('downloadLinks');
+  dlEl.innerHTML = '<span style="font-size:13px;margin-right:8px;">再ダウンロード:</span>';
+  files.forEach(f => {
+    const btn = document.createElement('button');
+    btn.className = 'btn btn-outline btn-sm';
+    btn.textContent = f.fileName;
+    btn.onclick = () => downloadCsv(f.fileName, f.content);
+    dlEl.appendChild(btn);
+  });
+}
+
+// ===== データクリア =====
+function clearData() {
+  if (!confirm('入力されたデータをクリアしますか？')) return;
+  document.getElementById('orderNoSelect').value = '';
+  document.getElementById('orderNoInput').value = '';
+  document.getElementById('paymentDisplay').value = '';
+  document.getElementById('dataBody').innerHTML = '';
+  addRows(5);
+  toast('クリアしました');
+}
+
+// ===== ユーティリティ =====
+function q(s) { return '"' + String(s).replace(/"/g, '""') + '"'; }
+function esc(s) { return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+
+function formatDateTime(d) {
+  const pad = n => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
+}
+
+function formatDate(d) {
+  const pad = n => String(n).padStart(2, '0');
+  return `${d.getFullYear()}${pad(d.getMonth()+1)}${pad(d.getDate())}`;
+}
+
+function toast(msg, isError = false) {
+  const el = document.getElementById('toast');
+  el.textContent = msg;
+  el.className = 'toast show' + (isError ? ' error' : '');
+  setTimeout(() => el.classList.remove('show'), 3000);
+}
+</script>
+</body>
+</html>
